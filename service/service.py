@@ -5,17 +5,22 @@ import json
 from flask import Flask, request, Response
 from google.cloud import pubsub_v1
 
-
 APP = Flask(__name__)
 
 PROJECT_ID = os.environ.get('PROJECT_ID')
 
-
 CREDENTIALS_PATH = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
 CREDENTIALS = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_CONTENT")
 
+PAYLOAD_KEY = os.environ.get('PAYLOAD_KEY')
+
 log_level = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
 logging.basicConfig(level=log_level)
+
+if not PROJECT_ID:
+    logging.error("Google cloud platform project id is undefined")
+
+logging.info("Project id: {}".format(PROJECT_ID))
 
 if CREDENTIALS:
     with open(CREDENTIALS_PATH, "wb") as out_file:
@@ -40,14 +45,17 @@ def process(topic_name):
             output_entity['_id'] = input_entity['_id']
             if index > 0:
                 yield ","
-            data = json.dumps(input_entity).encode("utf-8")
-            future = publisher.publish(topic_path, data=data)
+            data: str = json.dumps(input_entity[PAYLOAD_KEY] if PAYLOAD_KEY else input_entity).encode("utf-8")
             try:
+                future = publisher.publish(topic_path, data=data)
                 output_entity['result'] = future.result()
+                logging.info("SUCCESS: {}".format(output_entity))
             except Exception as e:
-                output_entity['result'] = e
+                logging.error(e)
+                output_entity['result'] = "ERROR: {}".format(str(e))
             yield json.dumps(output_entity)
         yield "]"
+
     return Response(generate(), content_type="application/json")
 
 
