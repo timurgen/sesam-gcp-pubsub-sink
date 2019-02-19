@@ -4,15 +4,15 @@ import json
 
 from flask import Flask, request, Response
 from google.cloud import pubsub_v1
+from waitress import serve
 
 APP = Flask(__name__)
 
 PROJECT_ID = os.environ.get('PROJECT_ID')
+PAYLOAD_KEY = os.environ.get('PAYLOAD_KEY')
 
 CREDENTIALS_PATH = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
 CREDENTIALS = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_CONTENT")
-
-PAYLOAD_KEY = os.environ.get('PAYLOAD_KEY')
 
 log_level = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
 logging.basicConfig(level=log_level)
@@ -21,6 +21,7 @@ if not PROJECT_ID:
     logging.error("Google cloud platform project id is undefined")
 
 logging.info("Project id: {}".format(PROJECT_ID))
+logging.info("Payload entity key: {}".format(PAYLOAD_KEY))
 
 if CREDENTIALS:
     with open(CREDENTIALS_PATH, "wb") as out_file:
@@ -46,6 +47,7 @@ def process(topic_name):
             if index > 0:
                 yield ","
             data: str = json.dumps(input_entity[PAYLOAD_KEY] if PAYLOAD_KEY else input_entity).encode("utf-8")
+            logging.debug("data to be sent: {}".format(data))
             try:
                 future = publisher.publish(topic_path, data=data)
                 output_entity['result'] = future.result()
@@ -60,4 +62,4 @@ def process(topic_name):
 
 
 if __name__ == "__main__":
-    APP.run(threaded=True, debug=True, host='0.0.0.0', port=os.environ.get('PORT', 5000))
+    serve(APP, host='0.0.0.0', port=os.environ.get('PORT', 5000))
