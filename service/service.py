@@ -2,7 +2,8 @@ import os
 import logging
 import json
 
-from flask import Flask, request, Response
+from string_utils import str_to_bool
+from flask import Flask, request, Response, abort
 from google.cloud import pubsub_v1
 from waitress import serve
 
@@ -13,6 +14,7 @@ PAYLOAD_KEY = os.environ.get('PAYLOAD_KEY')
 
 CREDENTIALS_PATH = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
 CREDENTIALS = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_CONTENT")
+FAIL_ON_ERROR = str_to_bool(os.environ.get('FILE_ON_ERROR', "True"))
 
 log_level = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
 logging.basicConfig(level=log_level)
@@ -40,22 +42,28 @@ def process(topic_name):
     input_data = request.get_json()
 
     def generate():
+
+        def callback(future):
+            if index > 0:
+                yield ","
+            output_entity['result'] = future.result()
+            yield json.dumps(output_entity)
+
         yield "["
         for index, input_entity in enumerate(input_data):
             output_entity = dict()
             output_entity['_id'] = input_entity['_id']
-            if index > 0:
-                yield ","
+
             data: str = json.dumps(input_entity[PAYLOAD_KEY] if PAYLOAD_KEY else input_entity).encode("utf-8")
             logging.debug("data to be sent: {}".format(data))
             try:
-                future = publisher.publish(topic_path, data=data)
-                output_entity['result'] = future.result()
-                logging.info("SUCCESS: {}".format(output_entity))
+                input_entity['future'] = publisher.publish(topic_path, data=data)
+                input_entity['future'].add_done_callback(callback)
             except Exception as e:
                 logging.error(e)
+                if FAIL_ON_ERROR:
+                    abort(500, str(e))
                 output_entity['result'] = "ERROR: {}".format(str(e))
-            yield json.dumps(output_entity)
         yield "]"
 
     return Response(generate(), content_type="application/json")
