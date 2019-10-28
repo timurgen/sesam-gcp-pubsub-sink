@@ -1,3 +1,3 @@
-google-cloud-pubsub
-flask
-waitress
+google-cloud-pubsub==1.0.2
+flask==1.1.1
+cherrypy==18.3.0
