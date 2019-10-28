@@ -18,7 +18,7 @@ FAIL_ON_ERROR = str_to_bool(os.environ.get('FILE_ON_ERROR', "True"))
 THREAD_POOL_SIZE = int(os.environ.get('THREAD_POOL_SIZE', '10'))
 
 SUBSCRIPTION_NAME = os.environ.get('SUBSCRIPTION_NAME', 'sesam-client-subscriber')
-SUBSCRIPTION_MAX_SIZE = int(os.environ.get('SUBSCRIPTION_MAX_SIZE', '1_000'))
+SUBSCRIPTION_BATCH_SIZE = int(os.environ.get('SUBSCRIPTION_MAX_SIZE', '1_000'))
 
 log_level = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
 logging.basicConfig(level=log_level)
@@ -84,7 +84,7 @@ def consume(topic_name):
     sub_path = subscriber.subscription_path(PROJECT_ID, SUBSCRIPTION_NAME)
     LOG.info(f'serving consumer request to topic {topic_name} for subscription {sub_path}')
 
-    response = subscriber.pull(sub_path, max_messages=1000, return_immediately=True)
+    response = subscriber.pull(sub_path, max_messages=SUBSCRIPTION_BATCH_SIZE, return_immediately=True)
 
     def generate(messages):
         first = True
