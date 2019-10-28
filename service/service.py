@@ -5,7 +5,6 @@ import json
 from string_utils import str_to_bool
 from flask import Flask, request, Response, abort
 from google.cloud import pubsub_v1
-from waitress import serve
 
 APP = Flask(__name__)
 
@@ -15,6 +14,8 @@ PAYLOAD_KEY = os.environ.get('PAYLOAD_KEY')
 CREDENTIALS_PATH = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
 CREDENTIALS = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS_CONTENT")
 FAIL_ON_ERROR = str_to_bool(os.environ.get('FILE_ON_ERROR', "True"))
+
+THREAD_POOL_SIZE = int(os.environ.get('THREAD_POOL_SIZE', '10'))
 
 log_level = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
 logging.basicConfig(level=log_level)
@@ -70,4 +71,22 @@ def process(topic_name):
 
 
 if __name__ == "__main__":
-    serve(APP, host='0.0.0.0', port=os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', '5000'))
+    if logging.isEnabledFor(logging.DEBUG):
+        APP.run(debug=True, host='0.0.0.0', port=port)
+    else:
+        import cherrypy
+
+        cherrypy.tree.graft(APP, '/')
+        cherrypy.config.update({
+            'environment': 'production',
+            'engine.autoreload_on': True,
+            'log.screen': False,
+            'server.socket_port': port,
+            'server.socket_host': '0.0.0.0',
+            'server.thread_pool': THREAD_POOL_SIZE,
+            'server.max_request_body_size': 0
+        })
+
+        cherrypy.engine.start()
+        cherrypy.engine.block()
