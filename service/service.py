@@ -17,7 +17,6 @@ FAIL_ON_ERROR = str_to_bool(os.environ.get('FILE_ON_ERROR', "True"))
 
 THREAD_POOL_SIZE = int(os.environ.get('THREAD_POOL_SIZE', '10'))
 
-SUBSCRIPTION_NAME = os.environ.get('SUBSCRIPTION_NAME', 'sesam-client-subscriber')
 SUBSCRIPTION_BATCH_SIZE = int(os.environ.get('SUBSCRIPTION_MAX_SIZE', '1_000'))
 
 log_level = logging.getLevelName(os.environ.get("LOG_LEVEL", "INFO"))
@@ -77,12 +76,12 @@ def process(topic_name):
     return Response(generate(), content_type="application/json")
 
 
-@APP.route('/<topic_name>', methods=['GET'])
-def consume(topic_name):
+@APP.route('/<subscription_name>', methods=['GET'])
+def consume(subscription_name):
     subscriber = pubsub_v1.SubscriberClient()
 
-    sub_path = subscriber.subscription_path(PROJECT_ID, SUBSCRIPTION_NAME)
-    LOG.info(f'serving consumer request to topic {topic_name} for subscription {sub_path}')
+    sub_path = subscriber.subscription_path(PROJECT_ID, subscription_name)
+    LOG.info(f'serving consumer request to topic {subscription_name} for subscription {sub_path}')
 
     response = subscriber.pull(sub_path, max_messages=SUBSCRIPTION_BATCH_SIZE, return_immediately=True)
 
@@ -98,7 +97,6 @@ def consume(topic_name):
                 yield ','
             else:
                 first = False
-
             yield json.dumps(data_item)
         yield ']'
         LOG.debug(f'{len(messages.received_messages)}  messages processed')
