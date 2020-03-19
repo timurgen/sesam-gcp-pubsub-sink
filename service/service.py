@@ -2,6 +2,7 @@ import os
 import logging
 import json
 
+import google
 from string_utils import str_to_bool
 from flask import Flask, request, Response, abort
 from google.cloud import pubsub_v1
@@ -78,19 +79,14 @@ def process(topic_name):
 
 @APP.route('/<subscription_name>', methods=['GET'])
 def consume(subscription_name):
-    subscriber = pubsub_v1.SubscriberClient()
-
-    sub_path = subscriber.subscription_path(PROJECT_ID, subscription_name)
-    LOG.info(f'serving consumer request to topic {subscription_name} for subscription {sub_path}')
-
-    response = subscriber.pull(sub_path, max_messages=SUBSCRIPTION_BATCH_SIZE, return_immediately=True)
-
     def generate(messages):
         first = True
         yield '['
 
         for msg in messages.received_messages:
             data_item = json.loads(msg.message.data)
+            if type(data_item) is list:
+                data_item = {'data': data_item}
             data_item['_id'] = str(msg.message.message_id)
             data_item['_updated'] = msg.message.publish_time.seconds
             if not first:
@@ -106,7 +102,18 @@ def consume(subscription_name):
             subscriber.acknowledge(sub_path, ack_ids)
             LOG.debug(f'{len(ack_ids)} acknowledged')
 
-    return Response(generate(response), content_type='application/json')
+    subscriber = pubsub_v1.SubscriberClient()
+
+    sub_path = subscriber.subscription_path(PROJECT_ID, subscription_name)
+    LOG.info(f'serving consumer request to topic {subscription_name} for subscription {sub_path}')
+    try:
+        response = subscriber.pull(sub_path, max_messages=SUBSCRIPTION_BATCH_SIZE, return_immediately=True)
+    except google.api_core.exceptions.DeadlineExceeded as e:
+        LOG.warning(str(e))
+    else:
+        return Response(generate(response), content_type='application/json')
+    LOG.debug("request didn't return any result")
+    return Response(json.dumps([]), content_type='application/json')
 
 
 if __name__ == "__main__":
