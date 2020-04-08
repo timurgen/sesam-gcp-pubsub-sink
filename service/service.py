@@ -101,7 +101,6 @@ def consume(subscription_name):
         if ack_ids:
             subscriber.acknowledge(sub_path, ack_ids)
             LOG.debug(f'{len(ack_ids)} acknowledged')
-        subscriber.close()
 
     subscriber = pubsub_v1.SubscriberClient()
 
