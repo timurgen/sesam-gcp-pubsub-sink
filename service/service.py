@@ -101,19 +101,21 @@ def consume(subscription_name):
         if ack_ids:
             subscriber.acknowledge(sub_path, ack_ids)
             LOG.debug(f'{len(ack_ids)} acknowledged')
+        subscriber.close()
 
     subscriber = pubsub_v1.SubscriberClient()
 
     sub_path = subscriber.subscription_path(PROJECT_ID, subscription_name)
     LOG.info(f'serving consumer request to topic {subscription_name} for subscription {sub_path}')
-    try:
-        response = subscriber.pull(sub_path, max_messages=SUBSCRIPTION_BATCH_SIZE, return_immediately=True)
-    except google.api_core.exceptions.DeadlineExceeded as e:
-        LOG.warning(str(e))
-    else:
-        return Response(generate(response), content_type='application/json')
-    LOG.debug("request didn't return any result")
-    return Response(json.dumps([]), content_type='application/json')
+    with subscriber:
+        try:
+            response = subscriber.pull(sub_path, max_messages=SUBSCRIPTION_BATCH_SIZE, return_immediately=True)
+        except google.api_core.exceptions.DeadlineExceeded as e:
+            LOG.warning(str(e))
+        else:
+            return Response(generate(response), content_type='application/json')
+        LOG.debug("request didn't return any result")
+        return Response(json.dumps([]), content_type='application/json')
 
 
 if __name__ == "__main__":
